@@ -1,0 +1,136 @@
+---
+# Orozco Morua Marco Antonio
+
+# Disponer de un entorno web en ejecución
+# Desplegar página web y aplicación php (Con BD).
+- name: Desplegar página personal, con aplicación php
+  hosts: server2
+  gather_facts: no
+  become: yes
+
+  tasks:
+    - name: Actualizar paquetes
+      apt:
+        update_cache: yes
+
+    # Instale los paquetes necesarios para que su aplicación web funcione.    
+    - name: Instalar paquetes necesarios 1
+      apt:
+        name: ['apache2', 'php']
+
+    - name: Instalar paquetes necesarios 2
+      apt:
+        name: ['libapache2-mod-php']
+
+    - name: Instalar paquetes necesarios 3
+      apt:
+        name: ['mysql-server', 'python3-pymysql', 'php-mysql']
+
+    # Crear una pagina web personal    
+    - name: Eliminar página por defecto
+      file:
+        path: /var/www/html/index.html
+        state: absent
+
+    #Establezca la pagina web desarrollada    
+    - name: Establecer página web personal
+      git:
+        repo: 'https://github.com/ma-ormor/pagina-personal.git'
+        dest: /var/www/html/
+        force: yes
+
+    # La pagina web se debe de ver en el dominio www.[primera letra del nombre][apellido].com
+    - name: Establecer dominio www.morozcomorua.com
+      lineinfile:
+        path: /etc/apache2/sites-enabled/000-default.conf
+        insertafter: 'ServerAdmin webmaster@localhost'
+        line: '        ServerName www.morozcomorua.com'
+        state: present
+
+    # Cree un nuevo VirtualHost dentro del servidor web y configure un root de documentos específico para ello
+    - name: Agregar directorio nuevo VirtualHost
+      shell: sudo mkdir /var/www/morozcomorua.com/
+
+    # La app web se debe de desplegar en el dominio app.[primera letra del nombre][apellido].com
+    - name: Copiar nuevo VirtualHost.conf (app.morozcomorua.com)
+      copy:
+        src: ~/ansible/tarea1/pasos/appmorozcomoruacom.conf
+        dest: /etc/apache2/sites-available/morozcomorua.com.conf
+    
+    # Habilite el nuevo VirtualHost
+    - name: Habilitar VirtualHost
+      shell: sudo a2ensite morozcomorua.com.conf
+      
+    # Establezca la contraseña para el usuario administrador de la base de datos
+    - name: Establecer contraseña para root
+      mysql_user:
+        name: root
+        password: "pass"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+    # Cargue su esquema de bases de datos en el servidor.    
+    - name: Crear base de datos
+      mysql_db:
+        name: catalogo_musica
+        state: present
+        login_user: root
+        login_password: pass
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+    - name: Cargar base de datos
+      copy:
+        src: ~/ansible/tarea1/pasos/catalogo_musica.sql
+        dest: /home/marco/
+
+    - name: Restaurar Base de Datos
+      mysql_db:
+        name: catalogo_musica
+        state: import
+        login_host: "localhost"
+        login_user: "root"
+        login_password: "pass"
+        target: catalogo_musica.sql 
+        
+    - name: Est. contraseña admin. base de datos
+      mysql_user:
+        name: ad_cm
+        password: 'pass'
+        login_user: "root"
+        login_password: "pass"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        priv: 'catalogo_musica.*:ALL'
+        state: present
+
+    # Elimine las cuentas anónimas y la base de datos de prueba.
+
+    - name: Borrar cuentas anonimas
+      mysql_user:
+        name: ''
+        host_all: yes
+        state: absent
+        login_user: root
+        login_password: "pass"
+
+    - name: Borrar base de datos de prueba
+      mysql_db:
+        name: test
+        state: absent
+        login_user: root
+        login_password: "pass"
+    
+    # Configure el firewall para que permita el tráfico HTTP en el puerto configurado (por defecto, el 80).
+    - name: Activar Firewall
+      ufw:
+        state: enabled
+
+    - name: Permitir HTTP
+      ufw:
+        rule: allow
+        port: 80
+        proto: tcp
+
+    # Establezca la aplicación web desarrollada.      
+    - name: Establecer aplicación web (GitHub)
+      git:
+        repo: 'https://github.com/ma-ormor/aplicacion-php.git'
+        dest: /var/www/morozcomorua.com/
