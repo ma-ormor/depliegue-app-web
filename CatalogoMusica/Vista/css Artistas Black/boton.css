@@ -1,0 +1,13 @@
+input{
+  background: transparent;
+  border: none;
+  outline:none;
+  text-decoration: none;
+  color: white;
+  font-style: bold;
+  background-color: transparent;
+}
+
+input:hover{
+  font-style: oblique;
+}
